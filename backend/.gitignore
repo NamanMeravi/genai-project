@@ -1,0 +1,59 @@
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+coverage/
+
+# Runtime files
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Cache
+.cache/
+.npm/
+.eslintcache
+
+# Testing
+.nyc_output/
+test-results/
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Security
+*.pem
+*.key
+
+# Optional local database files
+*.sqlite
+*.sqlite3
+*.db
