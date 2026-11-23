@@ -1,4 +1,5 @@
 import { User } from "../models/user.model.js";
+import { tokenBlacklistModel } from "../models/blacklist.model.js";
 import bcrypt from "bcryptjs";
  
 import jwt from 'jsonwebtoken'
@@ -19,7 +20,7 @@ export const signup = async(req,res,next)=>{
     });
 
     if(userexist){
-        return res.status(500).json({
+        return res.status(409).json({
             message:"user already exist"
         })
     }
@@ -40,7 +41,10 @@ export const signup = async(req,res,next)=>{
     })
 
     
-    res.cookie("token",token);
+    res.cookie("token",token,{
+        httpOnly:true,
+        sameSite:"lax"
+    });
 
     res.status(201).json({
         message:"User registered successfully",
@@ -52,7 +56,9 @@ export const signup = async(req,res,next)=>{
     })
     } catch (error) {
         console.log(error, "error in signup controller");
-        
+        return res.status(500).json({
+            message:"Unable to register user"
+        })
     }
 
 }
@@ -84,10 +90,13 @@ export const login = async(req,res,next)=>{
         expiresIn:"1d"
     })
 
-    res.cookie("token",token);
+    res.cookie("token",token,{
+        httpOnly:true,
+        sameSite:"lax"
+    });
 
-    res.status(201).json({
-        message:"User registered successfully",
+    res.status(200).json({
+        message:"User logged in successfully",
         user:{
             id:user._id,
             username:user.username,
@@ -98,8 +107,52 @@ export const login = async(req,res,next)=>{
 
   } catch (error) {
     console.log(error, "error in login controller");
-    
+    return res.status(500).json({
+        message:"Unable to login"
+    })
   }
+}
+
+
+export const logout = async(req, res)=> {
+    const token = req.cookies.token
+
+    if (token) {
+        await tokenBlacklistModel.create({ token })
+    }
+
+    res.clearCookie("token")
+
+    res.status(200).json({
+        message: "User logged out successfully"
+    })
+}
+
+
+export const getMe = async(req, res)=> {
+    try {
+        const user = await User.findById(req.user.id)
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            })
+        }
+
+        return res.status(200).json({
+            message: "User details fetched successfully",
+            user: {
+                id: user._id,
+                username: user.username,
+                email: user.email
+            }
+        })
+    } catch (error) {
+        console.log(error, "error in getMe controller")
+        return res.status(500).json({
+            message: "Unable to fetch user details"
+        })
+    }
 }
 
 
