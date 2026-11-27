@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
+import puppeteer from 'puppeteer'
 import * as z from 'zod'
 import dotenv from 'dotenv'
-import {zodToJsonSchema} from 'zod-to-json-schema'
 dotenv.config()
 
 const apiKey = process.env.GOOGLE_GENAI_API_KEY;
@@ -13,6 +13,14 @@ if (!apiKey) {
 const ai = new GoogleGenAI({
     apiKey: apiKey
 });
+
+const model = "gemini-3.5-flash-lite"
+
+const toResponseJsonSchema = (schema) => {
+    const jsonSchema = z.toJSONSchema(schema, { target: 'draft-7' })
+    delete jsonSchema.$schema
+    return jsonSchema
+}
 
 const interviewReportSchema = z.object({
     matchScore: z.number().describe("A score between 0 and 100 indicating how well the candidate's profile matches the job describe"),
@@ -46,18 +54,31 @@ export const generateInterviewReport=async({ resume, selfDescription, jobDescrip
                         Resume: ${resume}
                         Self Description: ${selfDescription}
                         Job Description: ${jobDescription}
+
+                        Return only a JSON object matching this exact structure:
+                        {
+                          "matchScore": number from 0 to 100,
+                          "technicalQuestions": [{"question": "string", "intention": "string", "answer": "string"}],
+                          "behavioralQuestions": [{"question": "string", "intention": "string", "answer": "string"}],
+                          "skillGaps": [{"skill": "string", "severity": "low | medium | high"}],
+                          "preparationPlan": [{"day": 1, "focus": "string", "tasks": ["string"]}],
+                          "title": "job title from the job description"
+                        }
+                        Include at least 3 technical questions, 3 behavioral questions, and 3 preparation-plan days.
+                        Do not include any other fields. Use empty arrays only when there is no relevant information.
 `
 
     const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+        model,
         contents: prompt,
         config: {
             responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(interviewReportSchema),
+            responseJsonSchema: toResponseJsonSchema(interviewReportSchema),
+            maxOutputTokens: 4096,
         }
     })
 
-    const report = JSON.parse(response.text)
+    const report = interviewReportSchema.parse(JSON.parse(response.text))
     console.log("Generated interview report:", report)
     return report
 
@@ -66,21 +87,32 @@ export const generateInterviewReport=async({ resume, selfDescription, jobDescrip
 
 async function generatePdfFromHtml(htmlContent) {
     const browser = await puppeteer.launch()
-    const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" })
+    try {
+        const page = await browser.newPage()
+        await page.setJavaScriptEnabled(false)
+        await page.setRequestInterception(true)
+        page.on('request', (request) => {
+            if (request.url().startsWith('data:') || request.url() === 'about:blank') {
+                request.continue()
+            } else {
+                request.abort()
+            }
+        })
+        await page.setContent(htmlContent, { waitUntil: 'load' })
 
-    const pdfBuffer = await page.pdf({
-        format: "A4", margin: {
-            top: "20mm",
-            bottom: "20mm",
-            left: "15mm",
-            right: "15mm"
-        }
-    })
-
-    await browser.close()
-
-    return pdfBuffer
+        return await page.pdf({
+            format: "A4",
+            printBackground: true,
+            margin: {
+                top: "20mm",
+                bottom: "20mm",
+                left: "15mm",
+                right: "15mm"
+            }
+        })
+    } finally {
+        await browser.close()
+    }
 }
 
 
@@ -104,11 +136,12 @@ export const  generateResumePdf= async({ resume, selfDescription, jobDescription
                     `
 
     const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+        model,
         contents: prompt,
         config: {
             responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(resumePdfSchema),
+            responseJsonSchema: toResponseJsonSchema(resumePdfSchema),
+            maxOutputTokens: 8192,
         }
     })
 
