@@ -1,7 +1,7 @@
-import { Navigate } from 'react-router'
+import { Navigate, Outlet } from 'react-router'
 import { useAuth } from '../hooks/useAuth.jsx'
 
-const Protected = ({ children }) => {
+const Protected = () => {
     const { loading, user } = useAuth()
 
     if (loading) {
@@ -13,7 +13,7 @@ const Protected = ({ children }) => {
         return <Navigate to="/login" replace />
     }
 
-    return children
+    return <Outlet />
 }
 
 export default Protected
